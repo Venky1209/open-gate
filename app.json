@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "PhoneGate",
+    "slug": "phonegate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "splash": {
+      "backgroundColor": "#0a0a0a"
+    },
+    "jsEngine": "jsc",
+    "android": {
+      "package": "com.venkat.phonegate",
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "scheme": "phonegate"
+  }
+}
