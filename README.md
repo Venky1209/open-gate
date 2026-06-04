@@ -1,11 +1,11 @@
-# PhoneGate
+# OpenGate
 Unlock your Windows PC with your phone's fingerprint or face.
 
 ## Mobile app
 
-This repository now includes a standalone Android APK:
+This repository includes a standalone Android APK:
 
-- [`phone-gate.apk`](/d:\phonegate-app\phonegate\phone-gate.apk)
+- [`opengate.apk`](/d:\phonegate-app\phonegate\opengate.apk)
 
 Install it on any Android phone and point it at your Windows PC in the app settings.
 
@@ -45,7 +45,6 @@ For production, the goal should be:
 
 ## Repository structure
 
-- `phone-gate.apk` - standalone Android build
+- `opengate.apk` - standalone Android build
 - `src/` - React Native app source
 - `plugins/` - Expo config plugins
-

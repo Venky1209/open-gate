@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  ScrollView,
 } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import { sendUnlockSignal } from "../lib/sender";
@@ -15,13 +16,18 @@ import { useSettings } from "../lib/useSettings";
 
 type State = "idle" | "scanning" | "sending" | "success" | "error";
 
+type DiagnosticItem = {
+  label: string;
+  value: string;
+};
+
 export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { settings, loaded } = useSettings();
   const [state, setState] = useState<State>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [diagnostics, setDiagnostics] = useState<DiagnosticItem[]>([]);
   const [biometryType, setBiometryType] = useState<string>("Biometric");
 
-  // Pulse animation for the fingerprint button
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -38,8 +44,18 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
   const startPulse = useCallback(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.12, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.12,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
       ])
     ).start();
   }, [pulseAnim]);
@@ -50,9 +66,15 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
   }, [pulseAnim]);
 
   const handleUnlock = useCallback(async () => {
-    // Guard: settings must be configured
+    setDiagnostics([]);
+
     if (!settings.pcIp || !settings.secret) {
       setErrorMsg("Set your PC IP and secret in Settings first.");
+      setDiagnostics([
+        { label: "PC IP", value: settings.pcIp || "missing" },
+        { label: "Port", value: settings.port || "missing" },
+        { label: "Secret", value: settings.secret ? "present" : "missing" },
+      ]);
       setState("error");
       return;
     }
@@ -61,7 +83,6 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
     startPulse();
 
     try {
-      // Check hardware availability
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
@@ -69,7 +90,6 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
         throw new Error("No biometric enrolled on this device.");
       }
 
-      // Trigger biometric prompt
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: "Authenticate to unlock PC",
         cancelLabel: "Cancel",
@@ -79,13 +99,10 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
 
       if (!result.success) {
         throw new Error(
-          result.error === "user_cancel"
-            ? "Cancelled."
-            : `Auth failed: ${result.error}`
+          result.error === "user_cancel" ? "Cancelled." : `Auth failed: ${result.error}`
         );
       }
 
-      // Biometric passed — send signal to PC
       stopPulse();
       setState("sending");
 
@@ -96,11 +113,26 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
       );
 
       if (!sendResult.success) {
+        setDiagnostics([
+          { label: "Target", value: `${settings.pcIp}:${settings.port}` },
+          { label: "Endpoint", value: `http://${settings.pcIp}:${settings.port}/unlock` },
+          { label: "Secret length", value: `${settings.secret.length} chars` },
+          {
+            label: "Likely cause",
+            value: sendResult.error.includes("cleartext")
+              ? "Android blocked HTTP traffic"
+              : sendResult.error.includes("refused")
+                ? "Nothing is listening on that port"
+                : sendResult.error.includes("Timed out")
+                  ? "PC is not reachable on this Wi-Fi"
+                  : "Network failed or service rejected the request",
+          },
+          { label: "Raw error", value: sendResult.error },
+        ]);
         throw new Error(sendResult.error);
       }
 
       setState("success");
-      // Auto-reset after 2s
       setTimeout(() => setState("idle"), 2000);
     } catch (e: any) {
       stopPulse();
@@ -114,13 +146,11 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>PhoneGate</Text>
+        <Text style={styles.title}>OpenGate</Text>
         <Text style={styles.subtitle}>Windows unlock via biometrics</Text>
       </View>
 
-      {/* PC IP indicator */}
       <View style={styles.targetBadge}>
         <View style={[styles.dot, settings.pcIp ? styles.dotActive : styles.dotInactive]} />
         <Text style={styles.targetText}>
@@ -128,7 +158,6 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
         </Text>
       </View>
 
-      {/* Main button */}
       <View style={styles.buttonArea}>
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
           <TouchableOpacity
@@ -145,7 +174,7 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
               <ActivityIndicator color="#fff" size="large" />
             ) : (
               <Text style={styles.unlockIcon}>
-                {state === "success" ? "✓" : state === "error" ? "✕" : "⏻"}
+                {state === "success" ? "✓" : state === "error" ? "✕" : "↻"}
               </Text>
             )}
           </TouchableOpacity>
@@ -158,9 +187,27 @@ export default function HomeScreen({ onOpenSettings }: { onOpenSettings: () => v
           {state === "success" && "PC unlocked!"}
           {state === "error" && errorMsg}
         </Text>
+
+        {state === "error" && diagnostics.length > 0 ? (
+          <View style={styles.diagnosticsCard}>
+            <Text style={styles.diagnosticsTitle}>Diagnostics</Text>
+            <ScrollView style={styles.diagnosticsList} contentContainerStyle={styles.diagnosticsListContent}>
+              {diagnostics.map((item) => (
+                <View key={item.label} style={styles.diagnosticRow}>
+                  <Text style={styles.diagnosticLabel}>{item.label}</Text>
+                  <Text style={styles.diagnosticValue}>{item.value}</Text>
+                </View>
+              ))}
+              <View style={styles.diagnosticHint}>
+                <Text style={styles.diagnosticHintText}>
+                  Expo Go and the standalone APK do not share SecureStore data. If the APK fails but Expo Go works, compare the saved IP, port, and secret in the APK.
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        ) : null}
       </View>
 
-      {/* Settings link */}
       <TouchableOpacity style={styles.settingsBtn} onPress={onOpenSettings}>
         <Text style={styles.settingsBtnText}>⚙ Settings</Text>
       </TouchableOpacity>
@@ -193,7 +240,7 @@ const styles = StyleSheet.create({
   dotActive: { backgroundColor: "#22c55e" },
   dotInactive: { backgroundColor: "#444" },
   targetText: { color: "#aaa", fontSize: 13, fontFamily: "monospace" },
-  buttonArea: { alignItems: "center", gap: 24 },
+  buttonArea: { alignItems: "center", gap: 24, width: "100%" },
   unlockBtn: {
     width: 140,
     height: 140,
@@ -214,8 +261,55 @@ const styles = StyleSheet.create({
     color: "#aaa",
     fontSize: 14,
     textAlign: "center",
-    maxWidth: 220,
+    maxWidth: 260,
     minHeight: 40,
+  },
+  diagnosticsCard: {
+    width: "100%",
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+    maxHeight: 260,
+  },
+  diagnosticsTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  diagnosticsList: { maxHeight: 200 },
+  diagnosticsListContent: { gap: 10 },
+  diagnosticRow: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
+  diagnosticLabel: {
+    color: "#7c7c7c",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  diagnosticValue: {
+    color: "#e5e5e5",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  diagnosticHint: {
+    backgroundColor: "#171717",
+    borderRadius: 12,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: "#3b82f6",
+  },
+  diagnosticHintText: {
+    color: "#9ca3af",
+    fontSize: 12,
+    lineHeight: 18,
   },
   settingsBtn: { padding: 12 },
   settingsBtnText: { color: "#555", fontSize: 14 },

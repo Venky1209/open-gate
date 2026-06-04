@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "PhoneGate",
-    "slug": "phonegate",
+    "name": "OpenGate",
+    "slug": "opengate",
     "version": "1.0.0",
     "orientation": "portrait",
     "splash": {
       "backgroundColor": "#0a0a0a"
     },
-    "jsEngine": "jsc",
     "android": {
-      "package": "com.venkat.phonegate",
+      "package": "com.venkat.opengate",
+      "usesCleartextTraffic": true,
       "permissions": [
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
@@ -19,8 +19,14 @@
       ]
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/withNetworkSecurityConfig"
     ],
-    "scheme": "phonegate"
+    "scheme": "opengate",
+    "extra": {
+      "eas": {
+        "projectId": "e95a35ca-1e0a-4f16-b422-b1551d2c5c1b"
+      }
+    }
   }
 }

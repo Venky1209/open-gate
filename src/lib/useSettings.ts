@@ -17,7 +17,7 @@ const DEFAULTS: Settings = {
   secret: "",
 };
 
-const KEY = "phonegate_settings";
+const KEY = "opengate_settings";
 
 export function useSettings() {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);

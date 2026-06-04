@@ -1,5 +1,5 @@
 {
-  "name": "phonegate",
+  "name": "opengate",
   "version": "1.0.0",
   "main": "expo/AppEntry",
   "scripts": {
@@ -26,7 +26,7 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "~19.1.10",
-    "babel-preset-expo": "^56.0.14",
+    "babel-preset-expo": "~54.0.11",
     "typescript": "~5.9.2"
   }
 }
