@@ -1,94 +1,51 @@
-# PhoneGate 🔐
-**Unlock your Windows PC with your phone's fingerprint or face.**
+# PhoneGate
+Unlock your Windows PC with your phone's fingerprint or face.
 
----
+## Mobile app
+
+This repository now includes a standalone Android APK:
+
+- [`phone-gate.apk`](/d:\phonegate-app\phonegate\phone-gate.apk)
+
+Install it on any Android phone and point it at your Windows PC in the app settings.
+
+### Mobile setup
+
+1. Open the APK on your Android device and install it.
+2. In the app, enter:
+   - your PC's local IPv4 address
+   - the port your Windows service listens on
+   - the shared secret
+3. Save the settings.
+4. Tap the unlock button and authenticate with biometrics.
 
 ## How it works
 
-```
-OnePlus Nord 5
-  → BiometricPrompt (fingerprint/face)
-    → HMAC-signed HTTP POST over LAN
-      → Windows Service (validates token)
-        → Named Pipe → Credential Provider DLL
-          → Windows logs you in
-```
+1. Android app authenticates with biometrics.
+2. App sends an HMAC-signed HTTP request over LAN.
+3. Windows service validates the request.
+4. Windows service triggers the login flow.
 
----
+## Windows side
 
-## Setup
+The Windows side is the next piece to package for real users.
 
-### 1. Android App (this repo)
+For production, the goal should be:
 
-```bash
-# Install dependencies
-npm install
-
-# Run on your phone (make sure Expo Go is installed)
-npx expo start --android
-
-# Or build an APK
-npx eas build --platform android --profile preview
-```
-
-Go to **Settings** in the app:
-- Enter your **PC's local IP** (run `ipconfig` on PC → Wi-Fi IPv4)
-- Set **port** to `7779` (or whatever you configure the Windows service to use)
-- Tap **Generate random secret** → copy it → paste into the Windows service config
-
----
-
-### 2. Windows Service (coming next)
-
-- A .NET 8 background service (`PhoneGateService`)
-- Listens on `http://localhost:7779`
-- Validates HMAC token (same secret as app)
-- Sends signal via Named Pipe to the Credential Provider
-
-Config file: `appsettings.json`
-```json
-{
-  "PhoneGate": {
-    "Port": 7779,
-    "Secret": "PASTE_SECRET_HERE",
-    "ReplayWindowMs": 10000
-  }
-}
-```
-
----
-
-### 3. Windows Credential Provider (coming next)
-
-- A COM DLL registered in `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers`
-- Polls Named Pipe for unlock signal
-- Auto-submits your stored (DPAPI-encrypted) password at the login screen
-
----
+- a simple installer
+- service startup on boot
+- a small configuration UI for IP, port, and shared secret
+- a tray app or service UI that looks polished enough for non-developers
 
 ## Security notes
 
-| Threat | Mitigation |
-|--------|-----------|
-| LAN eavesdropping | HMAC-signed payload (can't forge without secret) |
-| Replay attack | Timestamp checked (±10s window) + nonce tracked |
-| Secret storage | Android Keystore via `expo-secure-store` |
-| Password storage | Windows DPAPI (tied to your Windows user) |
-| Remote attack | Service only binds to local subnet |
+- The app uses a shared secret plus HMAC signing.
+- The service should reject bad timestamps and nonce replays.
+- The APK and Expo Go do not share app storage.
 
----
+## Repository structure
 
-## Project structure
+- `phone-gate.apk` - standalone Android build
+- `src/` - React Native app source
+- `plugins/` - Expo config plugins
 
-```
-phonegate/
-├── App.tsx                    # Root, manual nav
-├── src/
-│   ├── screens/
-│   │   ├── HomeScreen.tsx     # Main unlock UI
-│   │   └── SettingsScreen.tsx # PC IP + secret config
-│   └── lib/
-│       ├── hmac.ts            # HMAC-SHA256 packet signing
-│       ├── sender.ts          # HTTP POST to Windows service
-│       └── useSettings.ts     # SecureStore persistence
-```
